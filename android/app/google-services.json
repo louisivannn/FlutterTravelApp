@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "140001101863",
+    "project_id": "tripmatic-5a707",
+    "storage_bucket": "tripmatic-5a707.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:140001101863:android:5a08891e025bc4238d6602",
+        "android_client_info": {
+          "package_name": "com.example.final_proj"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDUR5rnGzzQLn8kTEBtPdePkBU6u4m7DQc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
