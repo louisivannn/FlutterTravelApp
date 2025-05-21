@@ -5,6 +5,7 @@ import 'package:final_proj/add_trip_screen.dart';
 import 'package:final_proj/trip_post_model.dart';
 import 'package:final_proj/trip_carousel_screen.dart';
 import 'package:final_proj/home_screen.dart';
+import 'search_page.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -28,9 +29,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
+    } else if (index == 1) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const SearchPage()),
+      );
+    } else if (index == 2) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const AddTripScreen()),
+      );
     }
-    // Add more navigation logic for other tabs if needed
   }
+
 
   @override
   Widget build(BuildContext context) {
