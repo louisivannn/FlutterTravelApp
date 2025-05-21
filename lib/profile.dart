@@ -1,9 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:final_proj/editprofile.dart';
-import 'add_trip_screen.dart';
-import 'trip_post_model.dart';
-import 'trip_carousel_screen.dart';
+import 'package:final_proj/add_trip_screen.dart';
+import 'package:final_proj/trip_post_model.dart';
+import 'package:final_proj/trip_carousel_screen.dart';
+import 'package:final_proj/home_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -13,6 +14,24 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  int _selectedIndex = 3; // Profile tab selected by default
+
+  void _onTabTapped(int index) {
+    if (index == _selectedIndex) return;
+
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    if (index == 0) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    }
+    // Add more navigation logic for other tabs if needed
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -48,7 +67,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          "Kyla Cruz",
+                          "Miguel",
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 25,
@@ -163,37 +182,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
         color: const Color(0xFF353566),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: const [
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.home, color: Colors.white),
-                Text("Home", style: TextStyle(color: Colors.white)),
-              ],
-            ),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.search, color: Colors.white),
-                Text("Search", style: TextStyle(color: Colors.white)),
-              ],
-            ),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.add_circle_outline, color: Colors.white),
-                Text("Add", style: TextStyle(color: Colors.white)),
-              ],
-            ),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.person_outlined, color: Colors.white),
-                Text("Profile", style: TextStyle(color: Colors.white)),
-              ],
-            ),
+          children: [
+            _buildTabIcon(Icons.home, "Home", 0),
+            _buildTabIcon(Icons.search, "Search", 1),
+            _buildTabIcon(Icons.add_circle_outline, "Add", 2),
+            _buildTabIcon(Icons.person_outlined, "Profile", 3),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTabIcon(IconData icon, String label, int index) {
+    final isSelected = _selectedIndex == index;
+    return GestureDetector(
+      onTap: () => _onTabTapped(index),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: isSelected ? Colors.white : Colors.white60),
+          Text(label, style: TextStyle(color: isSelected ? Colors.white : Colors.white60)),
+        ],
       ),
     );
   }

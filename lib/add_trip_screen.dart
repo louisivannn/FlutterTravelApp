@@ -36,9 +36,9 @@ class _AddTripScreenState extends State<AddTripScreen> {
       return;
     }
 
-    // Make sure descriptions length matches images length
     localTripPosts.add(
       TripPost(
+        title: _titleController.text,
         images: List.from(_selectedImages),
         descriptions: List.generate(
           _selectedImages.length,
@@ -182,8 +182,8 @@ class _AddTripScreenState extends State<AddTripScreen> {
                     child: TextField(
                       controller: _descriptionController,
                       maxLines: 4,
-                      decoration:
-                      const InputDecoration.collapsed(hintText: "Description.."),
+                      decoration: const InputDecoration.collapsed(
+                          hintText: "Description.."),
                     ),
                   ),
                   const SizedBox(height: 24),
