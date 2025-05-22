@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'trip_post_model.dart';
+import 'package:final_proj/profile.dart';
+
 
 class AddTripScreen extends StatefulWidget {
   const AddTripScreen({super.key});
@@ -127,10 +129,20 @@ class _AddTripScreenState extends State<AddTripScreen> {
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Add Trip"),
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white,),
+          onPressed: () {
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              '/profile',
+                  (route) => false,
+            );
+          },
+        ),
+        title: const Text("Add Trip", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'ArchivoBlack')),
+        centerTitle: true,
         backgroundColor: const Color(0xFF353566),
       ),
       body: Column(
@@ -200,7 +212,7 @@ class _AddTripScreenState extends State<AddTripScreen> {
                       child: const Padding(
                         padding:
                         EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        child: Text("Post Trip"),
+                        child: Text("Post Trip", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),),
                       ),
                     ),
                   ),

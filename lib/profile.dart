@@ -5,7 +5,8 @@ import 'package:final_proj/add_trip_screen.dart';
 import 'package:final_proj/trip_post_model.dart';
 import 'package:final_proj/trip_carousel_screen.dart';
 import 'package:final_proj/home_screen.dart';
-import 'search_page.dart';
+import 'package:final_proj/search_page.dart';
+import 'package:final_proj/bottom_navbar.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -41,7 +42,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -122,13 +122,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           context,
                           MaterialPageRoute(builder: (context) => const AddTripScreen()),
                         );
-                        setState(() {}); // Refresh when returning
+                        setState(() {});
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF353566),
-                        padding: const EdgeInsets.symmetric(horizontal: 120, vertical: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 12),
                       ),
-                      child: const Text("+ Add a trip"),
+                      child: const Text(
+                        "+ Add a trip",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 8),
                     ElevatedButton(
@@ -187,33 +194,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: BottomAppBar(
-        height: 60,
-        padding: const EdgeInsets.symmetric(vertical: 5),
-        color: const Color(0xFF353566),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildTabIcon(Icons.home, "Home", 0),
-            _buildTabIcon(Icons.search, "Search", 1),
-            _buildTabIcon(Icons.add_circle_outline, "Add", 2),
-            _buildTabIcon(Icons.person_outlined, "Profile", 3),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTabIcon(IconData icon, String label, int index) {
-    final isSelected = _selectedIndex == index;
-    return GestureDetector(
-      onTap: () => _onTabTapped(index),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: isSelected ? Colors.white : Colors.white60),
-          Text(label, style: TextStyle(color: isSelected ? Colors.white : Colors.white60)),
-        ],
+      bottomNavigationBar: BottomNavBar(
+        selectedIndex: _selectedIndex,
+        onTabTapped: _onTabTapped,
       ),
     );
   }

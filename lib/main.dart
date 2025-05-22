@@ -16,7 +16,12 @@ class MyApp extends StatelessWidget {
       title: 'Tripmatic',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.deepPurple),
-      home: const ProfileScreen(),
+      initialRoute: '/profile',     // starting route
+      routes: {
+        '/profile': (context) => const ProfileScreen(),
+      },
     );
   }
+
 }
+

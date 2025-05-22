@@ -1,7 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
-class EditProfileScreen extends StatelessWidget {
+class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
+
+  @override
+  State<EditProfileScreen> createState() => _EditProfileScreenState();
+}
+
+class _EditProfileScreenState extends State<EditProfileScreen> {
+  File? _imageFile;
+
+  Future<void> _pickImage() async {
+    final pickedFile = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+    );
+
+    if (pickedFile != null) {
+      setState(() {
+        _imageFile = File(pickedFile.path);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,17 +58,17 @@ class EditProfileScreen extends StatelessWidget {
               child: Stack(
                 alignment: Alignment.bottomRight,
                 children: [
-                  const CircleAvatar(
-                    radius: 100, // Increased radius here
-                    backgroundImage: AssetImage('assets/logo.jpg'),
+                  CircleAvatar(
+                    radius: 100,
+                    backgroundImage: _imageFile != null
+                        ? FileImage(_imageFile!)
+                        : const AssetImage('assets/logo.jpg') as ImageProvider,
                   ),
                   Positioned(
-                    bottom: 8, // Adjusted for better alignment on bigger avatar
+                    bottom: 8,
                     right: 8,
                     child: ElevatedButton(
-                      onPressed: () {
-                        // TODO: Handle edit image
-                      },
+                      onPressed: _pickImage,
                       style: ElevatedButton.styleFrom(
                         shape: const CircleBorder(),
                         padding: const EdgeInsets.all(10),
@@ -68,10 +89,7 @@ class EditProfileScreen extends StatelessWidget {
             const SizedBox(height: 30),
 
             // Fullname
-            const Text(
-              'Fullname',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            const Text('Fullname', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
             TextFormField(
               decoration: const InputDecoration(
@@ -82,10 +100,7 @@ class EditProfileScreen extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Lastname
-            const Text(
-              'Lastname',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            const Text('Lastname', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
             TextFormField(
               decoration: const InputDecoration(
@@ -96,10 +111,7 @@ class EditProfileScreen extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Username
-            const Text(
-              'Username',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            const Text('Username', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
             TextFormField(
               decoration: const InputDecoration(
@@ -110,10 +122,7 @@ class EditProfileScreen extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Password
-            const Text(
-              'Password',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            const Text('Password', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
             TextFormField(
               obscureText: true,
@@ -124,14 +133,14 @@ class EditProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 30),
 
-            // Save Button - smaller with custom color and white text, centered
+            // Save Button
             Center(
               child: SizedBox(
                 width: 150,
                 height: 40,
                 child: ElevatedButton(
                   onPressed: () {
-                    // TODO: Handle saving profile
+                    // TODO: Save logic here
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Profile saved!')),
                     );
@@ -146,8 +155,9 @@ class EditProfileScreen extends StatelessWidget {
                   child: const Text(
                     'Save Changes',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 15,
                       color: Colors.white,
+                      fontWeight: FontWeight.bold
                     ),
                   ),
                 ),

@@ -1,8 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:final_proj/trip_post_model.dart';
-import 'package:final_proj/trip_carousel_screen.dart';
+import 'package:final_proj/bottom_navbar.dart';
 import 'profile.dart';
+import 'search_page.dart';
+import 'add_trip_screen.dart';
+import 'trip_post_model.dart';
+import 'trip_carousel_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,6 +17,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late PageController _pageController;
   double _currentPage = 0;
+  int _selectedIndex = 0;
 
   @override
   void initState() {
@@ -32,25 +36,42 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  void _onTabTapped(int index) {
+    if (index == _selectedIndex) return;
+
+    if (index == 0) {
+      // Already on HomeScreen, do nothing
+    } else if (index == 1) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SearchPage()));
+    } else if (index == 2) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AddTripScreen()));
+    } else if (index == 3) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+    }
+
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ProfileScreen()),
-            );
-          },
+        title: const Text(
+          "Tripmatic",
+          style: TextStyle(
+            fontFamily: 'ArchivoBlack',
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            fontSize: 25,
+          ),
         ),
-        title: const Text("Tripmatic"),
         backgroundColor: const Color(0xFF353566),
       ),
       body: localTripPosts.isEmpty
-          ? const Center(child: Text("No posts yet", style: TextStyle(color: Colors.white)))
+          ? const Center(child: Text("No posts yet", style: TextStyle(color: Colors.black)))
           : Column(
         children: [
           Expanded(
@@ -107,7 +128,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
                               ),
-                              // Username and avatar
                               Positioned(
                                 top: 15,
                                 left: 15,
@@ -129,7 +149,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ],
                                 ),
                               ),
-                              // Trip title
                               Positioned(
                                 bottom: 70,
                                 left: 20,
@@ -143,7 +162,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
                               ),
-                              // Like and comment icons
                               Positioned(
                                 bottom: 20,
                                 left: 20,
@@ -165,7 +183,6 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
           ),
-          // Page indicator dots
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(localTripPosts.length, (index) {
@@ -183,43 +200,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: BottomAppBar(
-        height: 60,
-        padding: const EdgeInsets.symmetric(vertical: 5),
-        color: const Color(0xFF353566),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: const [
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.home, color: Colors.white),
-                Text("Home", style: TextStyle(color: Colors.white)),
-              ],
-            ),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.search, color: Colors.white),
-                Text("Search", style: TextStyle(color: Colors.white)),
-              ],
-            ),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.add_circle_outline, color: Colors.white),
-                Text("Add", style: TextStyle(color: Colors.white)),
-              ],
-            ),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.person_outlined, color: Colors.white),
-                Text("Profile", style: TextStyle(color: Colors.white)),
-              ],
-            ),
-          ],
-        ),
+      bottomNavigationBar: BottomNavBar(
+        selectedIndex: _selectedIndex,
+        onTabTapped: _onTabTapped,
       ),
     );
   }
