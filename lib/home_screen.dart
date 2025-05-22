@@ -63,7 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
           "Tripmatic",
           style: TextStyle(
             fontFamily: 'ArchivoBlack',
-            fontWeight: FontWeight.bold,
+
             color: Colors.white,
             fontSize: 25,
           ),

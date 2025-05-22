@@ -27,30 +27,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF353566),
+        centerTitle: true ,
+        title: const Text(
+          'Edit Profile',
+          style: TextStyle(
+            fontFamily: 'ArchivoBlack',
+
+            color: Colors.white,
+          ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Back button + Edit Profile label
-            Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                ),
-                const SizedBox(width: 8),
-                const Text(
-                  'Edit Profile',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
             const SizedBox(height: 20),
 
             // Profile picture with camera edit button
@@ -72,7 +70,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       style: ElevatedButton.styleFrom(
                         shape: const CircleBorder(),
                         padding: const EdgeInsets.all(10),
-                        backgroundColor: Colors.indigo,
+                        backgroundColor: const Color(0xFF353566),
                         minimumSize: const Size(40, 40),
                       ),
                       child: const Icon(
@@ -85,7 +83,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ],
               ),
             ),
-
             const SizedBox(height: 30),
 
             // Fullname
@@ -140,7 +137,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 height: 40,
                 child: ElevatedButton(
                   onPressed: () {
-                    // TODO: Save logic here
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Profile saved!')),
                     );
@@ -157,7 +153,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     style: TextStyle(
                       fontSize: 15,
                       color: Colors.white,
-                      fontWeight: FontWeight.bold
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),

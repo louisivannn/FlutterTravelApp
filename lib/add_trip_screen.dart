@@ -141,7 +141,7 @@ class _AddTripScreenState extends State<AddTripScreen> {
             );
           },
         ),
-        title: const Text("Add Trip", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'ArchivoBlack')),
+        title: const Text("Add Trip", style: TextStyle(color: Colors.white, fontFamily: 'ArchivoBlack')),
         centerTitle: true,
         backgroundColor: const Color(0xFF353566),
       ),

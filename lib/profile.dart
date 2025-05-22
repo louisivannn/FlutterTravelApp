@@ -53,7 +53,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             fontFamily: 'ArchivoBlack',
             color: Colors.white,
             fontSize: 25,
-            fontWeight: FontWeight.bold,
+
           ),
         ),
         backgroundColor: const Color(0xFF353566),
