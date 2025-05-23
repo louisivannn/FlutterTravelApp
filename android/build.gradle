@@ -4,7 +4,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.google.gms:google-services:4.4.2'  // ✅ Use only this
+        classpath 'com.google.gms:google-services:4.4.2'  //  Use only this
     }
 }
 

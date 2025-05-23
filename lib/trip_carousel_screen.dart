@@ -25,7 +25,7 @@ class _TripCarouselScreenState extends State<TripCarouselScreen> {
   void _startTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 4), (timer) {
-      if (_currentIndex < widget.trip.images.length - 1) {
+      if (_currentIndex < widget.trip.imageUrls.length - 1) {
         setState(() => _currentIndex++);
       } else {
         Navigator.pop(context);
@@ -36,7 +36,7 @@ class _TripCarouselScreenState extends State<TripCarouselScreen> {
   void _onTap(bool next) {
     _timer?.cancel();
     setState(() {
-      if (next && _currentIndex < widget.trip.images.length - 1) {
+      if (next && _currentIndex < widget.trip.imageUrls.length - 1) {
         _currentIndex++;
       } else if (!next && _currentIndex > 0) {
         _currentIndex--;
@@ -54,7 +54,7 @@ class _TripCarouselScreenState extends State<TripCarouselScreen> {
   @override
   Widget build(BuildContext context) {
     final trip = widget.trip;
-    final image = trip.images[_currentIndex];
+    final imageUrl = trip.imageUrls[_currentIndex];
     final description = trip.descriptions[_currentIndex];
 
     return Scaffold(
@@ -69,9 +69,16 @@ class _TripCarouselScreenState extends State<TripCarouselScreen> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Image.file(
-                  File(image.path),
+                Image.network(
+                  imageUrl,
                   fit: BoxFit.cover,
+                  loadingBuilder: (context, child, progress) {
+                    if (progress == null) return child;
+                    return const Center(child: CircularProgressIndicator());
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return const Center(child: Icon(Icons.broken_image, color: Colors.white));
+                  },
                 ),
                 Container(color: Colors.black.withOpacity(0.2)),
               ],
@@ -82,7 +89,7 @@ class _TripCarouselScreenState extends State<TripCarouselScreen> {
             left: 20,
             right: 20,
             child: Row(
-              children: trip.images.asMap().entries.map((entry) {
+              children: trip.imageUrls.asMap().entries.map((entry) {
                 final isActive = entry.key <= _currentIndex;
                 return Expanded(
                   child: Container(

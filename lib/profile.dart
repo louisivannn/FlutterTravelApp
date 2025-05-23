@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:final_proj/editprofile.dart';
 import 'package:final_proj/add_trip_screen.dart';
@@ -53,14 +53,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             fontFamily: 'ArchivoBlack',
             color: Colors.white,
             fontSize: 25,
-
           ),
         ),
         backgroundColor: const Color(0xFF353566),
       ),
       body: Column(
         children: [
-          // Profile Info Section
+          // Profile Info Section (unchanged)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 20),
@@ -122,7 +121,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           context,
                           MaterialPageRoute(builder: (context) => const AddTripScreen()),
                         );
-                        setState(() {});
+                        setState(() {}); // Refresh after returning
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF353566),
@@ -156,40 +155,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
 
-          // Trip Posts Grid
+          // Trip Posts Grid (replaced with StreamBuilder)
           Expanded(
-            child: localTripPosts.isEmpty
-                ? const Center(child: Text("No trips posted yet."))
-                : Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: GridView.builder(
-                itemCount: localTripPosts.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 6,
-                  mainAxisSpacing: 6,
-                ),
-                itemBuilder: (context, index) {
-                  final trip = localTripPosts[index];
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => TripCarouselScreen(trip: trip),
-                        ),
-                      );
-                    },
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.file(
-                        File(trip.images[0].path),
-                        fit: BoxFit.cover,
-                      ),
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('trips').snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text("No trips posted yet."));
+                }
+
+                // Map Firestore documents to TripPost objects
+                final tripPosts = snapshot.data!.docs
+                    .map((doc) => TripPost.fromFirestore(doc.data()! as Map<String, dynamic>))
+                    .where((trip) => trip.imageUrls.isNotEmpty)
+                    .toList();
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: GridView.builder(
+                    itemCount: tripPosts.length,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 6,
+                      mainAxisSpacing: 6,
                     ),
-                  );
-                },
-              ),
+                      itemBuilder: (context, index) {
+                        final trip = tripPosts[index];
+
+                        if (trip.imageUrls.isEmpty) {
+                          return const Icon(Icons.broken_image);
+                        }
+
+                        return GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => TripCarouselScreen(trip: trip)),
+                            );
+                          },
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.network(
+                              trip.imageUrls[0],
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                              const Icon(Icons.broken_image),
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return const Center(child: CircularProgressIndicator());
+                              },
+                            ),
+                          ),
+                        );
+                      }
+                  ),
+                );
+              },
             ),
           ),
         ],

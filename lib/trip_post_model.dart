@@ -1,15 +1,41 @@
-import 'package:image_picker/image_picker.dart';
-
 class TripPost {
   final String title;
-  final List<XFile> images;
+  final List<String> imageUrls; // URLs of uploaded images
   final List<String> descriptions;
 
   TripPost({
     required this.title,
-    required this.images,
+    required this.imageUrls,
     required this.descriptions,
   });
-}
 
-List<TripPost> localTripPosts = [];
+  // From Firestore (map) to TripPost
+  factory TripPost.fromFirestore(Map<String, dynamic> map) {
+    return TripPost(
+      title: map['title'] ?? '',
+      imageUrls: _ensureListOfString(map['images']),
+      descriptions: _ensureListOfString(map['description']),
+    );
+  }
+
+  // Helper method
+  static List<String> _ensureListOfString(dynamic data) {
+    if (data == null) return [];
+    if (data is String) return [data]; // Convert single string to list
+    if (data is Iterable) return List<String>.from(data);
+
+    return [];
+
+  }
+
+
+
+  // To Firestore (TripPost to map)
+  Map<String, dynamic> toMap() {
+    return {
+      'title': title,
+      'imageUrls': imageUrls,
+      'descriptions': descriptions,
+    };
+  }
+}

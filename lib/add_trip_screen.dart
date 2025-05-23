@@ -1,9 +1,8 @@
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'trip_post_model.dart';
-import 'package:final_proj/profile.dart';
-
 
 class AddTripScreen extends StatefulWidget {
   const AddTripScreen({super.key});
@@ -25,12 +24,12 @@ class _AddTripScreenState extends State<AddTripScreen> {
     if (pickedFiles != null && pickedFiles.isNotEmpty) {
       setState(() {
         _selectedImages.addAll(pickedFiles);
-        _currentIndex = 0; // Reset index when new images added
+        _currentIndex = 0;
       });
     }
   }
 
-  void _postTrip() {
+  Future<void> _postTrip() async {
     if (_selectedImages.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please select images first.")),
@@ -38,22 +37,35 @@ class _AddTripScreenState extends State<AddTripScreen> {
       return;
     }
 
-    localTripPosts.add(
-      TripPost(
-        title: _titleController.text,
-        images: List.from(_selectedImages),
-        descriptions: List.generate(
-          _selectedImages.length,
-              (_) => _descriptionController.text,
-        ),
-      ),
-    );
+    try {
+      List<String> imageUrls = [];
+      for (XFile image in _selectedImages) {
+        File file = File(image.path);
+        String fileName = DateTime.now().millisecondsSinceEpoch.toString();
+        TaskSnapshot snapshot = await FirebaseStorage.instance
+            .ref('trip_images/$fileName.jpg')
+            .putFile(file);
+        String downloadUrl = await snapshot.ref.getDownloadURL();
+        imageUrls.add(downloadUrl);
+      }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Trip posted locally!")),
-    );
+      await FirebaseFirestore.instance.collection('trips').add({
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'images': imageUrls,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
 
-    Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Trip posted to Firebase!")),
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
   }
 
   int _validIndex(int index) {
@@ -74,10 +86,20 @@ class _AddTripScreenState extends State<AddTripScreen> {
         ),
       );
     } else {
+      final validIndex = _validIndex(_currentIndex);
+      if (validIndex >= _selectedImages.length) {
+        return Container(
+          height: height,
+          color: Colors.grey[300],
+          child: const Center(
+            child: Icon(Icons.error, size: 50, color: Colors.red),
+          ),
+        );
+      }
       return Stack(
         children: [
           Image.file(
-            File(_selectedImages[_validIndex(_currentIndex)].path),
+            File(_selectedImages[validIndex].path),
             width: double.infinity,
             height: height,
             fit: BoxFit.cover,
@@ -132,16 +154,15 @@ class _AddTripScreenState extends State<AddTripScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white,),
+          icon: const Icon(Icons.close, color: Colors.white),
           onPressed: () {
-            Navigator.pushNamedAndRemoveUntil(
-              context,
-              '/profile',
-                  (route) => false,
-            );
+            Navigator.pop(context);
           },
         ),
-        title: const Text("Add Trip", style: TextStyle(color: Colors.white, fontFamily: 'ArchivoBlack')),
+        title: const Text(
+          "Add Trip",
+          style: TextStyle(color: Colors.white, fontFamily: 'ArchivoBlack'),
+        ),
         centerTitle: true,
         backgroundColor: const Color(0xFF353566),
       ),
@@ -212,7 +233,11 @@ class _AddTripScreenState extends State<AddTripScreen> {
                       child: const Padding(
                         padding:
                         EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        child: Text("Post Trip", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),),
+                        child: Text(
+                          "Post Trip",
+                          style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ),
                   ),
