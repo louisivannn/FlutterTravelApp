@@ -7,18 +7,23 @@ import 'bottom_navbar.dart';
 import 'add_trip_screen.dart';
 import 'profile.dart';
 import 'search_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+
 class _HomeScreenState extends State<HomeScreen> {
   late PageController _pageController;
   double _currentPage = 0;
   int _selectedIndex = 0;
+
 
   @override
   void initState() {
@@ -31,14 +36,17 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+
   @override
   void dispose() {
     _pageController.dispose();
     super.dispose();
   }
 
+
   void _onTabTapped(int index) {
     if (index == _selectedIndex) return;
+
 
     if (index == 1) {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SearchPage()));
@@ -48,10 +56,91 @@ class _HomeScreenState extends State<HomeScreen> {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
     }
 
+
     setState(() {
       _selectedIndex = index;
     });
   }
+
+
+  void _toggleLike(String postId, List<dynamic> currentLikes) async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+
+
+    final postRef = FirebaseFirestore.instance.collection('trips').doc(postId);
+
+
+    if (currentLikes.contains(userId)) {
+      await postRef.update({
+        'likes': FieldValue.arrayRemove([userId])
+      });
+    } else {
+      await postRef.update({
+        'likes': FieldValue.arrayUnion([userId])
+      });
+    }
+  }
+
+
+  void _showCommentModal(BuildContext context, String postId) {
+    final TextEditingController _commentController = TextEditingController();
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+            top: 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Add Comment", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _commentController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Write a comment...',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: () async {
+                  final commentText = _commentController.text.trim();
+                  if (commentText.isNotEmpty && userId != null) {
+                    await FirebaseFirestore.instance
+                        .collection('trips')
+                        .doc(postId)
+                        .collection('comments')
+                        .add({
+                      'userId': userId,
+                      'text': commentText,
+                      'timestamp': FieldValue.serverTimestamp(),
+                    });
+                    Navigator.pop(context);
+                  }
+                },
+                child: const Text('Post Comment'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -77,12 +166,15 @@ class _HomeScreenState extends State<HomeScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
+
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const Center(child: Text("No posts yet", style: TextStyle(color: Colors.black)));
           }
 
+
           final trips = snapshot.data!.docs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
+
 
             return TripPost(
               title: data['title'] ?? '',
@@ -92,6 +184,7 @@ class _HomeScreenState extends State<HomeScreen> {
               descriptions: (data['description'] is Iterable)
                   ? List<String>.from(data['description'])
                   : [data['description'].toString()],
+              userId: data['userId'] ?? '',
             );
           }).toList();
 
@@ -105,6 +198,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   itemBuilder: (context, index) {
                     final scale = (1 - (_currentPage - index).abs()).clamp(0.85, 1.0);
                     final trip = trips[index];
+                    final postId = snapshot.data!.docs[index].id;
+                    final data = snapshot.data!.docs[index].data() as Map<String, dynamic>;
+                    final likes = List<String>.from(data['likes'] ?? []);
+
+
+
 
                     return Center(
                       child: Transform.scale(
@@ -134,14 +233,14 @@ class _HomeScreenState extends State<HomeScreen> {
                               borderRadius: BorderRadius.circular(20),
                               child: Stack(
                                 children: [
-                                  trip.imageUrls.isNotEmpty?
-                                  CachedNetworkImage(
+                                  trip.imageUrls.isNotEmpty
+                                      ? CachedNetworkImage(
                                     imageUrl: trip.imageUrls[0],
                                     fit: BoxFit.cover,
                                     width: double.infinity,
                                     height: double.infinity,
-                                  ):
-                                    Container(
+                                  )
+                                      : Container(
                                     color: Colors.grey[300],
                                     width: double.infinity,
                                     height: double.infinity,
@@ -193,14 +292,29 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                     ),
                                   ),
-                                  const Positioned(
+                                  Positioned(
                                     bottom: 20,
                                     left: 20,
                                     child: Row(
                                       children: [
-                                        Icon(Icons.favorite_border, color: Colors.white),
-                                        SizedBox(width: 16),
-                                        Icon(Icons.mode_comment_outlined, color: Colors.white),
+                                        IconButton(
+                                          icon: Icon(
+                                            likes.contains(FirebaseAuth.instance.currentUser?.uid)
+                                                ? Icons.favorite
+                                                : Icons.favorite_border,
+                                            color: Colors.white,
+                                          ),
+                                          onPressed: () {
+                                            _toggleLike(postId, likes);
+                                          },
+                                        ),
+                                        const SizedBox(width: 16),
+                                        IconButton(
+                                          icon: const Icon(Icons.mode_comment_outlined, color: Colors.white),
+                                          onPressed: () {
+                                            _showCommentModal(context, postId);
+                                          },
+                                        ),
                                       ],
                                     ),
                                   ),

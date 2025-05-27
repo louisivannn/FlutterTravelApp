@@ -18,28 +18,40 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  int tripCount = 0;
   int _selectedIndex = 3;
   String? firstName;
+  String? profileImageUrl;
 
   @override
   void initState() {
     super.initState();
-    _fetchUserFirstName();
+    _fetchUserData();
   }
 
-  Future<void> _fetchUserFirstName() async {
+  Future<void> _fetchUserData() async {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid != null) {
-        final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+        final userDoc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
+        final data = userDoc.data();
+        final tripsSnapshot = await FirebaseFirestore.instance
+            .collection('trips')
+            .where('userId', isEqualTo: uid)
+            .get();
+
         setState(() {
-          firstName = userDoc.data()?['first_name'] ?? 'User';
+          firstName = data?['first_name'] ?? 'User';
+          profileImageUrl = data?['profile_image'];
+          tripCount = tripsSnapshot.docs.length;
         });
       }
     } catch (e) {
-      print('Error fetching name: $e');
+      print('Error fetching user data: $e');
       setState(() {
         firstName = 'User';
+        tripCount = 0;
       });
     }
   }
@@ -52,11 +64,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     if (index == 0) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const HomeScreen()));
     } else if (index == 1) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SearchPage()));
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const SearchPage()));
     } else if (index == 2) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AddTripScreen()));
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const AddTripScreen()));
     }
   }
 
@@ -75,7 +90,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: const Color(0xFF353566),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white,),
+            icon: const Icon(Icons.logout, color: Colors.white),
             onPressed: () async {
               await FirebaseAuth.instance.signOut();
               if (context.mounted) {
@@ -89,10 +104,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
-
       body: Column(
         children: [
-          // Profile Info Section
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(24),
@@ -102,9 +115,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Row(
                   children: [
-                    const CircleAvatar(
-                      backgroundImage: AssetImage("assets/logo.jpg"),
+                    CircleAvatar(
                       radius: 40,
+                      backgroundImage: profileImageUrl != null &&
+                          profileImageUrl!.isNotEmpty
+                          ? NetworkImage(profileImageUrl!)
+                          : const AssetImage("assets/logo.jpg")
+                      as ImageProvider,
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -118,11 +135,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     IconButton(
                       icon: const Icon(Icons.edit, color: Color(0xFF353566)),
-                      onPressed: () {
-                        Navigator.push(
+                      onPressed: () async {
+                        await Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                          MaterialPageRoute(
+                              builder: (_) => const EditProfileScreen()),
                         );
+                        _fetchUserData(); // Refresh name and image
                       },
                     ),
                   ],
@@ -130,23 +149,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: const [
+                  children: [
                     Column(
                       children: [
-                        Text("56", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        Text("Trips", style: TextStyle(fontSize: 14, color: Colors.grey)),
+                        Text("$tripCount",
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold)),
+                        Text("Trips",
+                            style:
+                            TextStyle(fontSize: 14, color: Colors.grey)),
                       ],
                     ),
                     Column(
                       children: [
-                        Text("41.7k", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        Text("Followers", style: TextStyle(fontSize: 14, color: Colors.grey)),
+                        Text("41.7k",
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold)),
+                        Text("Followers",
+                            style:
+                            TextStyle(fontSize: 14, color: Colors.grey)),
                       ],
                     ),
                     Column(
                       children: [
-                        Text("519", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        Text("Following", style: TextStyle(fontSize: 14, color: Colors.grey)),
+                        Text("519",
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold)),
+                        Text("Following",
+                            style:
+                            TextStyle(fontSize: 14, color: Colors.grey)),
                       ],
                     ),
                   ],
@@ -158,7 +189,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onPressed: () async {
                       await Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const AddTripScreen()),
+                        MaterialPageRoute(
+                            builder: (_) => const AddTripScreen()),
                       );
                       setState(() {});
                     },
@@ -172,20 +204,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: const Icon(Icons.add, color: Colors.white),
                     label: const Text(
                       "Add a Trip",
-                      style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-
           const SizedBox(height: 8),
-
-          // Trip Posts Grid (replaced with StreamBuilder)
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('trips').snapshots(),
+              stream: FirebaseFirestore.instance
+                  .collection('trips')
+                  .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -194,9 +228,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   return const Center(child: Text("No trips posted yet."));
                 }
 
-                // Map Firestore documents to TripPost objects
                 final tripPosts = snapshot.data!.docs
-                    .map((doc) => TripPost.fromFirestore(doc.data()! as Map<String, dynamic>))
+                    .map((doc) => TripPost.fromFirestore(
+                    doc.data()! as Map<String, dynamic>))
                     .where((trip) => trip.imageUrls.isNotEmpty)
                     .toList();
 
@@ -204,40 +238,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: GridView.builder(
                     itemCount: tripPosts.length,
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 3,
                       crossAxisSpacing: 6,
                       mainAxisSpacing: 6,
                     ),
-                      itemBuilder: (context, index) {
-                        final trip = tripPosts[index];
-
-                        if (trip.imageUrls.isEmpty) {
-                          return const Icon(Icons.broken_image);
-                        }
-
-                        return GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => TripCarouselScreen(trip: trip)),
-                            );
-                          },
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: Image.network(
-                              trip.imageUrls[0],
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                              const Icon(Icons.broken_image),
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return const Center(child: CircularProgressIndicator());
-                              },
-                            ),
+                    itemBuilder: (context, index) {
+                      final trip = tripPosts[index];
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    TripCarouselScreen(trip: trip)),
+                          );
+                        },
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.network(
+                            trip.imageUrls[0],
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                            const Icon(Icons.broken_image),
+                            loadingBuilder:
+                                (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return const Center(
+                                  child: CircularProgressIndicator());
+                            },
                           ),
-                        );
-                      }
+                        ),
+                      );
+                    },
                   ),
                 );
               },

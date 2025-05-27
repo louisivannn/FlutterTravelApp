@@ -2,11 +2,13 @@ class TripPost {
   final String title;
   final List<String> imageUrls; // URLs of uploaded images
   final List<String> descriptions;
+  final String userId;
 
   TripPost({
     required this.title,
     required this.imageUrls,
     required this.descriptions,
+    required this.userId,
   });
 
   // From Firestore (map) to TripPost
@@ -15,6 +17,7 @@ class TripPost {
       title: map['title'] ?? '',
       imageUrls: _ensureListOfString(map['images']),
       descriptions: _ensureListOfString(map['description']),
+      userId: map['userId'] ?? '',
     );
   }
 
@@ -36,6 +39,7 @@ class TripPost {
       'title': title,
       'imageUrls': imageUrls,
       'descriptions': descriptions,
+      'userId': userId,
     };
   }
 }

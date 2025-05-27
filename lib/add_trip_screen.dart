@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
@@ -19,7 +20,7 @@ class _AddTripScreenState extends State<AddTripScreen> {
 
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-
+  final uid = FirebaseAuth.instance.currentUser?.uid;
   Future<void> _pickImages() async {
     final List<XFile>? pickedFiles = await _picker.pickMultiImage();
     if (pickedFiles != null && pickedFiles.isNotEmpty) {
@@ -55,6 +56,7 @@ class _AddTripScreenState extends State<AddTripScreen> {
         'description': _descriptionController.text.trim(),
         'images': imageUrls,
         'timestamp': FieldValue.serverTimestamp(),
+        'userId': uid,
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
