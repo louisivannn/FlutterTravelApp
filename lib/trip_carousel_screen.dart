@@ -55,7 +55,9 @@ class _TripCarouselScreenState extends State<TripCarouselScreen> {
   Widget build(BuildContext context) {
     final trip = widget.trip;
     final imageUrl = trip.imageUrls[_currentIndex];
-    final description = trip.descriptions[_currentIndex];
+    final description = (_currentIndex < trip.descriptions.length)
+        ? trip.descriptions[_currentIndex]
+        : '';
 
     return Scaffold(
       backgroundColor: Colors.black,

@@ -134,11 +134,25 @@ class _SignupScreenState extends State<SignupScreen> {
   Future<void> _handleSignup() async {
     if (_formKey.currentState!.validate()) {
       try {
+        // Check if username already exists
+        final existingUsers = await _firestore
+            .collection('users')
+            .where('username', isEqualTo: usernameController.text.trim())
+            .get();
+
+        if (existingUsers.docs.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Username is already taken.')),
+          );
+          return;
+        }
+
         // Create user in Firebase Auth
         UserCredential userCredential = await _auth
             .createUserWithEmailAndPassword(
-            email: emailController.text.trim(),
-            password: passwordController.text.trim());
+          email: emailController.text.trim(),
+          password: passwordController.text.trim(),
+        );
 
         User? user = userCredential.user;
         if (user != null) {
@@ -149,6 +163,9 @@ class _SignupScreenState extends State<SignupScreen> {
             'username': usernameController.text.trim(),
             'email': emailController.text.trim(),
             'created_at': FieldValue.serverTimestamp(),
+            'followersCount': 0,
+            'followingCount': 0,
+            'profile_image': '',
           });
 
           ScaffoldMessenger.of(context).showSnackBar(
@@ -176,10 +193,11 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
-  Widget _buildTextField(
-      {required TextEditingController controller,
-        required String label,
-        bool obscure = false}) {
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    bool obscure = false,
+  }) {
     return TextFormField(
       controller: controller,
       obscureText: obscure,
@@ -196,8 +214,7 @@ class _SignupScreenState extends State<SignupScreen> {
       fillColor: Colors.white,
       contentPadding:
       const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-      border:
-      OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(30),
         borderSide: const BorderSide(color: Colors.black),

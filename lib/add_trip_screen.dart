@@ -20,7 +20,7 @@ class _AddTripScreenState extends State<AddTripScreen> {
 
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+
   Future<void> _pickImages() async {
     final List<XFile>? pickedFiles = await _picker.pickMultiImage();
     if (pickedFiles != null && pickedFiles.isNotEmpty) {
@@ -35,6 +35,14 @@ class _AddTripScreenState extends State<AddTripScreen> {
     if (_selectedImages.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please select images first.")),
+      );
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("User not signed in.")),
       );
       return;
     }
@@ -56,7 +64,7 @@ class _AddTripScreenState extends State<AddTripScreen> {
         'description': _descriptionController.text.trim(),
         'images': imageUrls,
         'timestamp': FieldValue.serverTimestamp(),
-        'userId': uid,
+        'userId': user.uid, // ✅ Ensure userId is stored with the trip
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -221,8 +229,8 @@ class _AddTripScreenState extends State<AddTripScreen> {
                     child: TextField(
                       controller: _descriptionController,
                       maxLines: 4,
-                      decoration: const InputDecoration.collapsed(
-                          hintText: "Description.."),
+                      decoration:
+                      const InputDecoration.collapsed(hintText: "Description.."),
                     ),
                   ),
                   const SizedBox(height: 24),
