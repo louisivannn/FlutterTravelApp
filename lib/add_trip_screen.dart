@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:final_proj/profile.dart';
 
 class AddTripScreen extends StatefulWidget {
   const AddTripScreen({super.key});
@@ -156,7 +157,10 @@ class _AddTripScreenState extends State<AddTripScreen> {
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.white),
           onPressed: () {
-            Navigator.pop(context);
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const ProfileScreen()),
+            );
           },
         ),
         title: const Text(

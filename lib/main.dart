@@ -26,7 +26,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(primarySwatch: Colors.deepPurple),
       initialRoute: '/profile',     // starting route
       routes: {
-        '/profile': (context) => const ProfileScreen(),
+        '/profile': (context) => const LoginScreen(),
       },
     );
   }

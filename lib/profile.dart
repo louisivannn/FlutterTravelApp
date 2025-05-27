@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:final_proj/editprofile.dart';
 import 'package:final_proj/add_trip_screen.dart';
@@ -7,6 +8,7 @@ import 'package:final_proj/trip_carousel_screen.dart';
 import 'package:final_proj/home_screen.dart';
 import 'package:final_proj/search_page.dart';
 import 'package:final_proj/bottom_navbar.dart';
+import 'package:final_proj/login.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -16,7 +18,31 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  int _selectedIndex = 3; // Profile tab selected by default
+  int _selectedIndex = 3;
+  String? firstName;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserFirstName();
+  }
+
+  Future<void> _fetchUserFirstName() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+        setState(() {
+          firstName = userDoc.data()?['first_name'] ?? 'User';
+        });
+      }
+    } catch (e) {
+      print('Error fetching name: $e');
+      setState(() {
+        firstName = 'User';
+      });
+    }
+  }
 
   void _onTabTapped(int index) {
     if (index == _selectedIndex) return;
@@ -26,20 +52,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     if (index == 0) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
     } else if (index == 1) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const SearchPage()),
-      );
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SearchPage()));
     } else if (index == 2) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const AddTripScreen()),
-      );
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AddTripScreen()));
     }
   }
 
@@ -56,104 +73,114 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         backgroundColor: const Color(0xFF353566),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white,),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      (route) => false,
+                );
+              }
+            },
+          ),
+        ],
       ),
+
       body: Column(
         children: [
-          // Profile Info Section (unchanged)
+          // Profile Info Section
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 20),
+            padding: const EdgeInsets.all(24),
+            color: const Color(0xFFF8F8F8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  children: const [
-                    CircleAvatar(
+                  children: [
+                    const CircleAvatar(
                       backgroundImage: AssetImage("assets/logo.jpg"),
-                      radius: 45,
+                      radius: 40,
                     ),
-                    SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Miguel",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 25,
-                          ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        firstName ?? "Loading...",
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
                         ),
-                      ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Color(0xFF353566)),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                        );
+                      },
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: const [
                     Column(
                       children: [
                         Text("56", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        Text("Trips", style: TextStyle(fontSize: 14)),
+                        Text("Trips", style: TextStyle(fontSize: 14, color: Colors.grey)),
                       ],
                     ),
                     Column(
                       children: [
                         Text("41.7k", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        Text("Followers", style: TextStyle(fontSize: 14)),
+                        Text("Followers", style: TextStyle(fontSize: 14, color: Colors.grey)),
                       ],
                     ),
                     Column(
                       children: [
                         Text("519", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        Text("Following", style: TextStyle(fontSize: 14)),
+                        Text("Following", style: TextStyle(fontSize: 14, color: Colors.grey)),
                       ],
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const AddTripScreen()),
-                        );
-                        setState(() {}); // Refresh after returning
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF353566),
-                        padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 12),
-                      ),
-                      child: const Text(
-                        "+ Add a trip",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AddTripScreen()),
+                      );
+                      setState(() {});
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF353566),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const EditProfileScreen()),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF353566),
-                      ),
-                      child: const Icon(Icons.edit, color: Colors.white),
+                    icon: const Icon(Icons.add, color: Colors.white),
+                    label: const Text(
+                      "Add a Trip",
+                      style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
                     ),
-                  ],
+                  ),
                 ),
               ],
             ),
           ),
+
+          const SizedBox(height: 8),
 
           // Trip Posts Grid (replaced with StreamBuilder)
           Expanded(
