@@ -1,3 +1,5 @@
+import 'package:final_proj/home_screen.dart';
+import 'package:final_proj/profile.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -44,12 +46,10 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   void _openProfile(Map<String, dynamic> userData) {
-    // For now, just show a dialog. You can route to a profile screen here.
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("${userData['first_name']} ${userData['last_name']}"),
-        content: Text("Username: ${userData['username']}"),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProfileScreen(userId: userData['uid']),
       ),
     );
   }
@@ -81,8 +81,10 @@ class _SearchPageState extends State<SearchPage> {
                   const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
-                    child: const Text("Cancel",
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                    child: const Text(
+                      "Cancel",
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                     ),
                   ),
                 ],
@@ -94,19 +96,21 @@ class _SearchPageState extends State<SearchPage> {
               child: _searchResults.isEmpty
                   ? const Center(child: Text("No results found."))
                   : ListView.builder(
-                itemCount: _searchResults.length,
-                itemBuilder: (context, index) {
-                  final user = _searchResults[index];
-                  return ListTile(
-                    leading: const CircleAvatar(
-                      backgroundImage: AssetImage('assets/logo.jpg'), // Replace with actual image if available
+                      itemCount: _searchResults.length,
+                      itemBuilder: (context, index) {
+                        final user = _searchResults[index];
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundImage: NetworkImage(user[
+                                'profile_image']), // Replace with actual image if available
+                          ),
+                          title: Text(
+                              "${user['first_name']} ${user['last_name']}"),
+                          subtitle: Text(user['username']),
+                          onTap: () => _openProfile(user),
+                        );
+                      },
                     ),
-                    title: Text("${user['first_name']} ${user['last_name']}"),
-                    subtitle: Text(user['username']),
-                    onTap: () => _openProfile(user),
-                  );
-                },
-              ),
             ),
           ],
         ),

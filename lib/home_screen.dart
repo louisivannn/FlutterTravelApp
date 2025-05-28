@@ -20,10 +20,12 @@ class _HomeScreenState extends State<HomeScreen> {
   late PageController _pageController;
   double _currentPage = 0;
   int _selectedIndex = 0;
+  String? currentUserId;
 
   @override
   void initState() {
     super.initState();
+    currentUserId = FirebaseAuth.instance.currentUser?.uid;
     _pageController = PageController(viewportFraction: 0.75);
     _pageController.addListener(() {
       setState(() {
@@ -38,15 +40,36 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  String formatTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inMinutes < 1) {
+      return 'just now';
+    } else if (difference.inHours < 1) {
+      return '${difference.inMinutes} mins ago';
+    } else if (difference.inDays < 1) {
+      return '${difference.inHours} hours ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} days ago';
+    } else {
+      // For simplicity, just show date for older comments
+      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+    }
+  }
+
   void _onTabTapped(int index) {
     if (index == _selectedIndex) return;
 
     if (index == 1) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SearchPage()));
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const SearchPage()));
     } else if (index == 2) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AddTripScreen()));
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const AddTripScreen()));
     } else if (index == 3) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
     }
 
     setState(() {
@@ -81,19 +104,103 @@ class _HomeScreenState extends State<HomeScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) {
+      builder: (BuildContext modalContext) {
         return Padding(
           padding: EdgeInsets.only(
             left: 20,
             right: 20,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+            bottom: MediaQuery.of(modalContext).viewInsets.bottom + 20,
             top: 20,
           ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: MainAxisSize.max,
             children: [
-              const Text("Add Comment", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              Row(
+                children: [
+                  const Text("Comments",
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.black,
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                  ),
+                ],
+              ),
               const SizedBox(height: 12),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('tbl_comments')
+                      .where('postId', isEqualTo: postId)
+                      .snapshots(),
+                  builder: (context, commentSnapshot) {
+                    print('Querying comments for postId: $postId');
+                    if (commentSnapshot.connectionState ==
+                        ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    if (!commentSnapshot.hasData ||
+                        commentSnapshot.data!.docs.isEmpty) {
+                      return const Center(child: Text("No comments yet."));
+                    }
+
+                    final comments = commentSnapshot.data!.docs;
+
+                    return ListView.builder(
+                      itemCount: comments.length,
+                      itemBuilder: (context, index) {
+                        final commentData =
+                            comments[index].data() as Map<String, dynamic>;
+
+                        print(
+                            'Comment profile image URL: ${commentData['profile_image']}');
+
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundImage: NetworkImage(
+                                commentData['profile_image'] ?? ''),
+                          ),
+                          
+                          title: Row(
+                            children: [
+                              Text(commentData['username'] ?? 'Anonymous'),
+                              const SizedBox(width: 8),
+                              Text(
+                                commentData['timestamp'] != null
+                                    ? formatTimeAgo(
+                                        (commentData['timestamp'] as Timestamp)
+                                            .toDate())
+                                    : '',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                          subtitle: Text(commentData['content'] ?? ''),
+                          trailing: (commentData['userId'] == currentUserId)
+                              ? IconButton(
+                                  icon: const Icon(Icons.delete, size: 20),
+                                  color: Colors.redAccent,
+                                  onPressed: () =>
+                                      _deleteComment(comments[index].id),
+                                )
+                              : null,
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
               TextField(
                 controller: _commentController,
                 maxLines: 3,
@@ -110,33 +217,64 @@ class _HomeScreenState extends State<HomeScreen> {
 
                   if (commentText.isNotEmpty && user != null) {
                     // Fetch user info from Firestore
-                    final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+                    final userDoc = await FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(user.uid)
+                        .get();
                     final userData = userDoc.data();
 
                     if (userData != null) {
                       await FirebaseFirestore.instance
-                          .collection('trips')
-                          .doc(postId)
-                          .collection('comments')
+                          .collection('tbl_comments')
                           .add({
+                        'postId': postId,
                         'userId': user.uid,
                         'username': userData['username'] ?? '',
-                        'profileImage': userData['profile_image'] ?? '',
-                        'text': commentText,
+                        'profile_image': userData['profile_image'] ?? '',
+                        'content': commentText,
                         'timestamp': FieldValue.serverTimestamp(),
                       });
+                      _commentController.clear();
 
-                      Navigator.pop(context);
+                      // Navigator.pop(context);
                     }
                   }
                 },
                 child: const Text('Post Comment'),
               ),
+              const SizedBox(height: 10),
             ],
           ),
         );
       },
     );
+  }
+
+  Future<void> _deleteComment(String commentId) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('tbl_comments')
+          .doc(commentId)
+          .delete();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Comment deleted!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error deleting comment: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete comment: $e'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -154,17 +292,16 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: const Color(0xFF353566),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('trips')
-            .orderBy('timestamp', descending: true)
-            .snapshots(),
+        stream: FirebaseFirestore.instance.collection('trips').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text("No posts yet", style: TextStyle(color: Colors.black)));
+            return const Center(
+                child: Text("No posts yet",
+                    style: TextStyle(color: Colors.black)));
           }
 
           final trips = snapshot.data!.docs.map((doc) {
@@ -178,6 +315,9 @@ class _HomeScreenState extends State<HomeScreen> {
               descriptions: (data['description'] is Iterable)
                   ? List<String>.from(data['description'])
                   : [data['description'].toString()],
+              userId: data['userId'] ?? '',
+              username: data['username'] ?? '',
+              profileImageUrl: data['profileImageUrl'] ?? '',
             );
           }).toList();
 
@@ -188,12 +328,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   controller: _pageController,
                   itemCount: trips.length,
                   itemBuilder: (context, index) {
-                    final scale = (1 - (_currentPage - index).abs()).clamp(0.85, 1.0);
+                    final scale =
+                        (1 - (_currentPage - index).abs()).clamp(0.85, 1.0);
                     final trip = trips[index];
                     final postId = snapshot.data!.docs[index].id;
-                    final data = snapshot.data!.docs[index].data() as Map<String, dynamic>;
+                    final data = snapshot.data!.docs[index].data()
+                        as Map<String, dynamic>;
                     final likes = List<String>.from(data['likes'] ?? []);
-
 
                     return Center(
                       child: Transform.scale(
@@ -209,6 +350,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           },
                           child: Container(
                             margin: const EdgeInsets.only(right: 16),
+                            height: MediaQuery.of(context).size.height * 0.7,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(20),
                               boxShadow: [
@@ -225,17 +367,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                 children: [
                                   trip.imageUrls.isNotEmpty
                                       ? CachedNetworkImage(
-                                    imageUrl: trip.imageUrls[0],
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                  )
+                                          imageUrl: trip.imageUrls[0],
+                                          fit: BoxFit.cover,
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                        )
                                       : Container(
-                                    color: Colors.grey[300],
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    child: const Icon(Icons.image_not_supported),
-                                  ),
+                                          color: Colors.grey[300],
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                          child: const Icon(
+                                              Icons.image_not_supported),
+                                        ),
                                   Container(
                                     decoration: BoxDecoration(
                                       gradient: LinearGradient(
@@ -254,7 +397,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                     child: Row(
                                       children: [
                                         CircleAvatar(
-                                          backgroundImage: AssetImage("assets/logo.jpg"),
+                                          backgroundImage:
+                                              AssetImage("assets/logo.jpg"),
                                           radius: 18,
                                         ),
                                         SizedBox(width: 10),
@@ -286,12 +430,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                     bottom: 20,
                                     left: 20,
                                     child: Row(
+                                      mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Row(
+                                          mainAxisSize: MainAxisSize.min,
                                           children: [
                                             IconButton(
                                               icon: Icon(
-                                                likes.contains(FirebaseAuth.instance.currentUser?.uid)
+                                                likes.contains(FirebaseAuth
+                                                        .instance
+                                                        .currentUser
+                                                        ?.uid)
                                                     ? Icons.favorite
                                                     : Icons.favorite_border,
                                                 color: Colors.white,
@@ -302,52 +451,21 @@ class _HomeScreenState extends State<HomeScreen> {
                                             ),
                                             Text(
                                               likes.length.toString(),
-                                              style: const TextStyle(color: Colors.white),
+                                              style: const TextStyle(
+                                                  color: Colors.white),
                                             ),
                                           ],
                                         ),
                                         const SizedBox(width: 16),
                                         IconButton(
-                                          icon: const Icon(Icons.mode_comment_outlined, color: Colors.white),
+                                          icon: const Icon(
+                                              Icons.mode_comment_outlined,
+                                              color: Colors.white),
                                           onPressed: () {
                                             _showCommentModal(context, postId);
                                           },
                                         ),
                                         const SizedBox(height: 4),
-                                        StreamBuilder<QuerySnapshot>(
-                                          stream: FirebaseFirestore.instance
-                                              .collection('trips')
-                                              .doc(postId)
-                                              .collection('comments')
-                                              .orderBy('timestamp', descending: true)
-                                              .limit(1)
-                                              .snapshots(),
-                                          builder: (context, commentSnapshot) {
-                                            if (!commentSnapshot.hasData || commentSnapshot.data!.docs.isEmpty) {
-                                              return const SizedBox(); // No comment to show
-                                            }
-                                            final comment = commentSnapshot.data!.docs.first.data() as Map<String, dynamic>;
-                                            return Padding(
-                                              padding: const EdgeInsets.only(left: 20, right: 20, bottom: 8),
-                                              child: Row(
-                                                children: [
-                                                  CircleAvatar(
-                                                    radius: 12,
-                                                    backgroundImage: NetworkImage(comment['profileImage'] ?? ''),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Expanded(
-                                                    child: Text(
-                                                      "${comment['username']}: ${comment['text']}",
-                                                      style: const TextStyle(color: Colors.white, fontSize: 14),
-                                                      overflow: TextOverflow.ellipsis,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          },
-                                        ),
                                       ],
                                     ),
                                   ),
@@ -366,11 +484,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: List.generate(trips.length, (index) {
                   return AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
-                    margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                    margin:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                     height: 8,
                     width: _currentPage.round() == index ? 16 : 8,
                     decoration: BoxDecoration(
-                      color: _currentPage.round() == index ? Colors.white : Colors.white38,
+                      color: _currentPage.round() == index
+                          ? Colors.white
+                          : Colors.white38,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   );
