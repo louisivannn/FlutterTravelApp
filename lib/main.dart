@@ -6,6 +6,8 @@ import 'package:final_proj/editprofile.dart';
 import 'package:final_proj/profile.dart';
 import 'firebase_options.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:final_proj/home_screen.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,9 +26,10 @@ class MyApp extends StatelessWidget {
       title: 'Tripmatic',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.deepPurple),
-      initialRoute: '/profile',     // starting route
+      initialRoute: '/home',     // starting route
       routes: {
-        '/profile': (context) => const LoginScreen(),
+        //'/profile': (context) => const LoginScreen(),
+        '/home': (context) => const HomeScreen(),
       },
     );
   }
