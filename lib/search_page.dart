@@ -1,36 +1,41 @@
+import 'package:final_proj/home_screen.dart';
+import 'package:final_proj/profile.dart';
 import 'package:flutter/material.dart';
-import 'profile.dart'; // Import your ProfilePage here
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
 
   @override
-  State<SearchPage> createState() => _SearchScreenState();
+  State<SearchPage> createState() => _SearchPageState();
 }
 
-class _SearchScreenState extends State<SearchPage> {
+class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
+  List<Map<String, dynamic>> _searchResults = [];
 
-  final List<String> _allPosts = [
-    "Ivan Virgo - Japan Trip",
-    "Mark Reyes - Baguio",
-    "Anna Lim - Palawan",
-    "Carlos Miguel - Ilocos",
-  ];
+  // Fetch matching usernames from Firestore
+  void _onSearchChanged(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults = [];
+      });
+      return;
+    }
 
-  List<String> _filteredResults = [];
+    final result = await FirebaseFirestore.instance
+        .collection('users')
+        .where('username', isGreaterThanOrEqualTo: query)
+        .where('username', isLessThanOrEqualTo: query + '\uf8ff')
+        .get();
 
-  @override
-  void initState() {
-    super.initState();
-    _filteredResults = _allPosts;
-  }
-
-  void _onSearchChanged(String query) {
     setState(() {
-      _filteredResults = _allPosts
-          .where((post) => post.toLowerCase().contains(query.toLowerCase()))
-          .toList();
+      _searchResults = result.docs.map((doc) {
+        return {
+          'uid': doc.id,
+          ...doc.data(),
+        };
+      }).toList();
     });
   }
 
@@ -40,13 +45,22 @@ class _SearchScreenState extends State<SearchPage> {
     super.dispose();
   }
 
+  void _openProfile(Map<String, dynamic> userData) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProfileScreen(userId: userData['uid']),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            // Search bar with cancel button
+            // Search bar
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
               child: Row(
@@ -56,64 +70,47 @@ class _SearchScreenState extends State<SearchPage> {
                       controller: _searchController,
                       onChanged: _onSearchChanged,
                       decoration: InputDecoration(
-                        hintText: "Search profiles or posts",
+                        hintText: "Search by username...",
                         prefixIcon: const Icon(Icons.search),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 0),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   GestureDetector(
-                    onTap: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (context) => const ProfileScreen()),
-                      );
-                    },
+                    onTap: () => Navigator.pop(context),
                     child: const Text(
                       "Cancel",
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 10),
-            // Separator line
-            const Divider(
-              height: 1,
-              thickness: 1,
-              color: Colors.white10,
-            ),
-
-            // Search results
+            const Divider(height: 1),
+            // Results
             Expanded(
-              child: _filteredResults.isEmpty
-                  ? const Center(child: Text("No results found"))
+              child: _searchResults.isEmpty
+                  ? const Center(child: Text("No results found."))
                   : ListView.builder(
-                itemCount: _filteredResults.length,
-                itemBuilder: (context, index) {
-                  final result = _filteredResults[index];
-                  return ListTile(
-                    leading: const CircleAvatar(
-                      backgroundImage: AssetImage("assets/logo.jpg"),
+                      itemCount: _searchResults.length,
+                      itemBuilder: (context, index) {
+                        final user = _searchResults[index];
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundImage: NetworkImage(user[
+                                'profile_image']), // Replace with actual image if available
+                          ),
+                          title: Text(
+                              "${user['first_name']} ${user['last_name']}"),
+                          subtitle: Text(user['username']),
+                          onTap: () => _openProfile(user),
+                        );
+                      },
                     ),
-                    title: Text(result),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Tapped on $result")),
-                      );
-                    },
-                  );
-                },
-              ),
             ),
           ],
         ),

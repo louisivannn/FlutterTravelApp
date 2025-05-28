@@ -18,12 +18,20 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late PageController _pageController;
+  double _currentPage = 0;
   int _selectedIndex = 0;
+  String? currentUserId;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 1.0);
+    currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    _pageController = PageController(viewportFraction: 0.75);
+    _pageController.addListener(() {
+      setState(() {
+        _currentPage = _pageController.page ?? 0;
+      });
+    });
   }
 
   @override
@@ -32,15 +40,36 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  String formatTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inMinutes < 1) {
+      return 'just now';
+    } else if (difference.inHours < 1) {
+      return '${difference.inMinutes} mins ago';
+    } else if (difference.inDays < 1) {
+      return '${difference.inHours} hours ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} days ago';
+    } else {
+      // For simplicity, just show date for older comments
+      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+    }
+  }
+
   void _onTabTapped(int index) {
     if (index == _selectedIndex) return;
 
     if (index == 1) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SearchPage()));
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const SearchPage()));
     } else if (index == 2) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AddTripScreen()));
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const AddTripScreen()));
     } else if (index == 3) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
     }
 
     setState(() {
@@ -75,19 +104,103 @@ class _HomeScreenState extends State<HomeScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) {
+      builder: (BuildContext modalContext) {
         return Padding(
           padding: EdgeInsets.only(
             left: 20,
             right: 20,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+            bottom: MediaQuery.of(modalContext).viewInsets.bottom + 20,
             top: 20,
           ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: MainAxisSize.max,
             children: [
-              const Text("Add Comment", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              Row(
+                children: [
+                  const Text("Comments",
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.black,
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                  ),
+                ],
+              ),
               const SizedBox(height: 12),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('tbl_comments')
+                      .where('postId', isEqualTo: postId)
+                      .snapshots(),
+                  builder: (context, commentSnapshot) {
+                    print('Querying comments for postId: $postId');
+                    if (commentSnapshot.connectionState ==
+                        ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    if (!commentSnapshot.hasData ||
+                        commentSnapshot.data!.docs.isEmpty) {
+                      return const Center(child: Text("No comments yet."));
+                    }
+
+                    final comments = commentSnapshot.data!.docs;
+
+                    return ListView.builder(
+                      itemCount: comments.length,
+                      itemBuilder: (context, index) {
+                        final commentData =
+                            comments[index].data() as Map<String, dynamic>;
+
+                        print(
+                            'Comment profile image URL: ${commentData['profile_image']}');
+
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundImage: NetworkImage(
+                                commentData['profile_image'] ?? ''),
+                          ),
+                          
+                          title: Row(
+                            children: [
+                              Text(commentData['username'] ?? 'Anonymous'),
+                              const SizedBox(width: 8),
+                              Text(
+                                commentData['timestamp'] != null
+                                    ? formatTimeAgo(
+                                        (commentData['timestamp'] as Timestamp)
+                                            .toDate())
+                                    : '',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                          subtitle: Text(commentData['content'] ?? ''),
+                          trailing: (commentData['userId'] == currentUserId)
+                              ? IconButton(
+                                  icon: const Icon(Icons.delete, size: 20),
+                                  color: Colors.redAccent,
+                                  onPressed: () =>
+                                      _deleteComment(comments[index].id),
+                                )
+                              : null,
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
               TextField(
                 controller: _commentController,
                 maxLines: 3,
@@ -100,21 +213,36 @@ class _HomeScreenState extends State<HomeScreen> {
               ElevatedButton(
                 onPressed: () async {
                   final commentText = _commentController.text.trim();
-                  if (commentText.isNotEmpty && userId != null) {
-                    await FirebaseFirestore.instance
-                        .collection('trips')
-                        .doc(postId)
-                        .collection('comments')
-                        .add({
-                      'userId': userId,
-                      'text': commentText,
-                      'timestamp': FieldValue.serverTimestamp(),
-                    });
-                    Navigator.pop(context);
+                  final user = FirebaseAuth.instance.currentUser;
+
+                  if (commentText.isNotEmpty && user != null) {
+                    // Fetch user info from Firestore
+                    final userDoc = await FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(user.uid)
+                        .get();
+                    final userData = userDoc.data();
+
+                    if (userData != null) {
+                      await FirebaseFirestore.instance
+                          .collection('tbl_comments')
+                          .add({
+                        'postId': postId,
+                        'userId': user.uid,
+                        'username': userData['username'] ?? '',
+                        'profile_image': userData['profile_image'] ?? '',
+                        'content': commentText,
+                        'timestamp': FieldValue.serverTimestamp(),
+                      });
+                      _commentController.clear();
+
+                      // Navigator.pop(context);
+                    }
                   }
                 },
                 child: const Text('Post Comment'),
               ),
+              const SizedBox(height: 10),
             ],
           ),
         );
@@ -122,10 +250,36 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _deleteComment(String commentId) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('tbl_comments')
+          .doc(commentId)
+          .delete();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Comment deleted!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error deleting comment: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete comment: $e'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text(
           "Tripmatic",
@@ -138,185 +292,212 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: const Color(0xFF353566),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('trips')
-            .orderBy('timestamp', descending: true)
-            .snapshots(),
+        stream: FirebaseFirestore.instance.collection('trips').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text("No posts yet", style: TextStyle(color: Colors.white)));
+            return const Center(
+                child: Text("No posts yet",
+                    style: TextStyle(color: Colors.black)));
           }
 
-          final tripsDocs = snapshot.data!.docs;
+          final trips = snapshot.data!.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
 
-          return FutureBuilder<List<TripPost>>(
-            future: Future.wait(tripsDocs.map((doc) async {
-              final data = doc.data()! as Map<String, dynamic>;
+            return TripPost(
+              title: data['title'] ?? '',
+              imageUrls: (data['images'] is Iterable)
+                  ? List<String>.from(data['images'])
+                  : [data['images'].toString()],
+              descriptions: (data['description'] is Iterable)
+                  ? List<String>.from(data['description'])
+                  : [data['description'].toString()],
+              userId: data['userId'] ?? '',
+              username: data['username'] ?? '',
+              profileImageUrl: data['profileImageUrl'] ?? '',
+            );
+          }).toList();
 
-              // Fetch user document by userId
-              final userDoc = await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(data['userId'])
-                  .get();
+          return Column(
+            children: [
+              Expanded(
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: trips.length,
+                  itemBuilder: (context, index) {
+                    final scale =
+                        (1 - (_currentPage - index).abs()).clamp(0.85, 1.0);
+                    final trip = trips[index];
+                    final postId = snapshot.data!.docs[index].id;
+                    final data = snapshot.data!.docs[index].data()
+                        as Map<String, dynamic>;
+                    final likes = List<String>.from(data['likes'] ?? []);
 
-              final userData = userDoc.data() ?? {};
-
-              return TripPost(
-                title: data['title'] ?? '',
-                imageUrls: (data['images'] is Iterable)
-                    ? List<String>.from(data['images'])
-                    : [data['images'].toString()],
-                descriptions: (data['description'] is Iterable)
-                    ? List<String>.from(data['description'])
-                    : [data['description'].toString()],
-                userId: data['userId'] ?? '',
-                username: userData['username'] ?? 'Unknown',
-                profileImageUrl: userData['profile_image'] ?? '',
-              );
-            }).toList()),
-            builder: (context, tripsSnapshot) {
-              if (tripsSnapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (!tripsSnapshot.hasData || tripsSnapshot.data!.isEmpty) {
-                return const Center(child: Text("No posts yet", style: TextStyle(color: Colors.white)));
-              }
-              final trips = tripsSnapshot.data!;
-
-              return PageView.builder(
-                controller: _pageController,
-                itemCount: trips.length,
-                itemBuilder: (context, index) {
-                  final trip = trips[index];
-                  final postId = tripsDocs[index].id;
-                  final data = tripsDocs[index].data() as Map<String, dynamic>;
-                  final likes = List<String>.from(data['likes'] ?? []);
-
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => TripCarouselScreen(trip: trip),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                      height: MediaQuery.of(context).size.height * 0.7,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.4),
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
-                          )
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Stack(
-                          children: [
-                            trip.imageUrls.isNotEmpty
-                                ? CachedNetworkImage(
-                              imageUrl: trip.imageUrls[0],
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                              height: double.infinity,
-                            )
-                                : Container(
-                              color: Colors.grey[300],
-                              width: double.infinity,
-                              height: double.infinity,
-                              child: const Icon(Icons.image_not_supported),
-                            ),
-                            Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.bottomCenter,
-                                  end: Alignment.topCenter,
-                                  colors: [
-                                    Colors.black.withOpacity(0.6),
-                                    Colors.transparent,
-                                  ],
-                                ),
+                    return Center(
+                      child: Transform.scale(
+                        scale: scale,
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => TripCarouselScreen(trip: trip),
                               ),
+                            );
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.only(right: 16),
+                            height: MediaQuery.of(context).size.height * 0.7,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.4),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 5),
+                                )
+                              ],
                             ),
-                            Positioned(
-                              top: 15,
-                              left: 15,
-                              child: Row(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: Stack(
                                 children: [
-                                  CircleAvatar(
-                                    backgroundImage: trip.profileImageUrl != null && trip.profileImageUrl!.isNotEmpty
-                                        ? NetworkImage(trip.profileImageUrl ?? '')
-                                        : const AssetImage("assets/logo.jpg") as ImageProvider,
-                                    radius: 18,
+                                  trip.imageUrls.isNotEmpty
+                                      ? CachedNetworkImage(
+                                          imageUrl: trip.imageUrls[0],
+                                          fit: BoxFit.cover,
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                        )
+                                      : Container(
+                                          color: Colors.grey[300],
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                          child: const Icon(
+                                              Icons.image_not_supported),
+                                        ),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.bottomCenter,
+                                        end: Alignment.topCenter,
+                                        colors: [
+                                          Colors.black.withOpacity(0.6),
+                                          Colors.transparent,
+                                        ],
+                                      ),
+                                    ),
                                   ),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    trip.username ?? 'Unknown user',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
+                                  const Positioned(
+                                    top: 15,
+                                    left: 15,
+                                    child: Row(
+                                      children: [
+                                        CircleAvatar(
+                                          backgroundImage:
+                                              AssetImage("assets/logo.jpg"),
+                                          radius: 18,
+                                        ),
+                                        SizedBox(width: 10),
+                                        Text(
+                                          "Miguel",
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Positioned(
+                                    bottom: 70,
+                                    left: 20,
+                                    right: 20,
+                                    child: Text(
+                                      trip.title,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    bottom: 20,
+                                    left: 20,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            IconButton(
+                                              icon: Icon(
+                                                likes.contains(FirebaseAuth
+                                                        .instance
+                                                        .currentUser
+                                                        ?.uid)
+                                                    ? Icons.favorite
+                                                    : Icons.favorite_border,
+                                                color: Colors.white,
+                                              ),
+                                              onPressed: () {
+                                                _toggleLike(postId, likes);
+                                              },
+                                            ),
+                                            Text(
+                                              likes.length.toString(),
+                                              style: const TextStyle(
+                                                  color: Colors.white),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(width: 16),
+                                        IconButton(
+                                          icon: const Icon(
+                                              Icons.mode_comment_outlined,
+                                              color: Colors.white),
+                                          onPressed: () {
+                                            _showCommentModal(context, postId);
+                                          },
+                                        ),
+                                        const SizedBox(height: 4),
+                                      ],
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            Positioned(
-                              bottom: 70,
-                              left: 20,
-                              right: 20,
-                              child: Text(
-                                trip.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              bottom: 20,
-                              left: 20,
-                              child: Row(
-                                children: [
-                                  IconButton(
-                                    icon: Icon(
-                                      likes.contains(FirebaseAuth.instance.currentUser?.uid)
-                                          ? Icons.favorite
-                                          : Icons.favorite_border,
-                                      color: Colors.white,
-                                    ),
-                                    onPressed: () {
-                                      _toggleLike(postId, likes);
-                                    },
-                                  ),
-                                  const SizedBox(width: 16),
-                                  IconButton(
-                                    icon: const Icon(Icons.mode_comment_outlined, color: Colors.white),
-                                    onPressed: () {
-                                      _showCommentModal(context, postId);
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
+                    );
+                  },
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(trips.length, (index) {
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    margin:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                    height: 8,
+                    width: _currentPage.round() == index ? 16 : 8,
+                    decoration: BoxDecoration(
+                      color: _currentPage.round() == index
+                          ? Colors.white
+                          : Colors.white38,
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   );
-                },
-              );
-            },
+                }),
+              ),
+            ],
           );
         },
       ),
