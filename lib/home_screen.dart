@@ -48,13 +48,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (snapshot.docs.isNotEmpty) {
       setState(() {
-        _tripData = snapshot.docs.map((doc) => {
-          ...doc.data(),
-          'postId': doc.id,
-        }).toList();
+        _tripData = snapshot.docs
+            .map((doc) => {
+                  ...doc.data(),
+                  'postId': doc.id,
+                })
+            .toList();
         _trips = snapshot.docs.map((doc) {
           final data = doc.data();
-          
+
           List<String> images = [];
           if (data['images'] != null) {
             if (data['images'] is List) {
@@ -81,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
           }
 
           return TripPost(
+            postId: doc.id,
             title: data['title'] ?? '',
             imageUrls: images,
             descriptions: descriptions,
@@ -148,14 +151,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final postRef = FirebaseFirestore.instance.collection('trips').doc(postId);
 
-    if (currentLikes.contains(userId)) {
-      await postRef.update({
-        'likes': FieldValue.arrayRemove([userId])
-      });
-    } else {
-      await postRef.update({
-        'likes': FieldValue.arrayUnion([userId])
-      });
+    try {
+      if (currentLikes.contains(userId)) {
+        await postRef.update({
+          'likes': FieldValue.arrayRemove([userId])
+        });
+      } else {
+        await postRef.update({
+          'likes': FieldValue.arrayUnion([userId])
+        });
+      }
+
+      await _loadTrips();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error toggling like: $e')),
+        );
+      }
     }
   }
 
@@ -367,7 +380,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     onPageChanged: _onPageChanged,
                     physics: const ClampingScrollPhysics(),
                     itemBuilder: (context, index) {
-                      final scale = 1.0 - (_currentPage - index).abs().clamp(0.0, 1.0) * 0.15;
+                      final scale = 1.0 -
+                          (_currentPage - index).abs().clamp(0.0, 1.0) * 0.15;
                       final trip = _trips[index];
                       final data = _tripData[index];
                       final likes = List<String>.from(data['likes'] ?? []);
@@ -380,7 +394,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => TripCarouselScreen(trip: trip),
+                                  builder: (_) =>
+                                      TripCarouselScreen(trip: trip),
                                 ),
                               );
                             },
@@ -413,8 +428,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                                 color: Colors.white,
                                               ),
                                             ),
-                                            errorWidget: (context, url, error) =>
-                                                Container(
+                                            errorWidget:
+                                                (context, url, error) =>
+                                                    Container(
                                               color: Colors.grey[300],
                                               width: double.infinity,
                                               height: double.infinity,
@@ -429,7 +445,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                                   Text(
                                                     'Failed to load image',
                                                     style: TextStyle(
-                                                        color: Colors.grey[600]),
+                                                        color:
+                                                            Colors.grey[600]),
                                                   ),
                                                 ],
                                               ),
@@ -454,20 +471,27 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ),
                                       ),
                                     ),
-                                    const Positioned(
+                                    Positioned(
                                       top: 15,
                                       left: 15,
                                       child: Row(
                                         children: [
                                           CircleAvatar(
                                             backgroundImage:
-                                                AssetImage("assets/logo.jpg"),
+                                                data['profile_image'] != null &&
+                                                        data['profile_image']
+                                                            .isNotEmpty
+                                                    ? NetworkImage(
+                                                        data['profile_image'])
+                                                    : const AssetImage(
+                                                            "assets/logo.jpg")
+                                                        as ImageProvider,
                                             radius: 18,
                                           ),
                                           SizedBox(width: 10),
                                           Text(
-                                            "Miguel",
-                                            style: TextStyle(
+                                            data['username'] ?? 'Anonymous',
+                                            style: const TextStyle(
                                               color: Colors.white,
                                               fontWeight: FontWeight.bold,
                                               fontSize: 16,
@@ -509,7 +533,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                                   color: Colors.white,
                                                 ),
                                                 onPressed: () {
-                                                  _toggleLike(data['postId'], likes);
+                                                  _toggleLike(
+                                                      data['postId'], likes);
                                                 },
                                               ),
                                               Text(
@@ -525,7 +550,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                                 Icons.mode_comment_outlined,
                                                 color: Colors.white),
                                             onPressed: () {
-                                              _showCommentModal(context, data['postId']);
+                                              _showCommentModal(
+                                                  context, data['postId']);
                                             },
                                           ),
                                           const SizedBox(height: 4),
@@ -547,7 +573,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: List.generate(_trips.length, (index) {
                     return AnimatedContainer(
                       duration: const Duration(milliseconds: 300),
-                      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 8),
                       height: 8,
                       width: _currentPage.round() == index ? 16 : 8,
                       decoration: BoxDecoration(

@@ -173,6 +173,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  void _showDeleteConfirmation(String postId) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Post'),
+          content: const Text('Are you sure you want to delete this post?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                try {
+                  await FirebaseFirestore.instance
+                      .collection('trips')
+                      .doc(postId)
+                      .delete();
+
+                  final commentsSnapshot = await FirebaseFirestore.instance
+                      .collection('tbl_comments')
+                      .where('postId', isEqualTo: postId)
+                      .get();
+
+                  for (var doc in commentsSnapshot.docs) {
+                    await doc.reference.delete();
+                  }
+
+                  if (mounted) {
+                    _fetchCounts();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Post deleted successfully')),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error deleting post: $e')),
+                    );
+                  }
+                }
+                Navigator.pop(context);
+              },
+              child: const Text(
+                'Delete',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -350,8 +407,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 }
 
                 final tripPosts = snapshot.data!.docs
-                    .map((doc) => TripPost.fromFirestore(
-                        doc.data()! as Map<String, dynamic>))
+                    .map((doc) => TripPost.fromFirestore({
+                          ...doc.data()! as Map<String, dynamic>,
+                          'postId': doc.id,
+                        }))
                     .where((trip) => trip.imageUrls.isNotEmpty)
                     .toList();
 
@@ -381,20 +440,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       TripCarouselScreen(trip: trip)),
                             );
                           },
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: Image.network(
-                              trip.imageUrls[0],
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const Icon(Icons.broken_image),
-                              loadingBuilder:
-                                  (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return const Center(
-                                    child: CircularProgressIndicator());
-                              },
-                            ),
+                          child: Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.network(
+                                  trip.imageUrls[0],
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Icon(Icons.broken_image),
+                                  loadingBuilder:
+                                      (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return const Center(
+                                        child: CircularProgressIndicator());
+                                  },
+                                ),
+                              ),
+                              if (widget.userId == null ||
+                                  widget.userId == currentUserId)
+                                Positioned(
+                                  top: 5,
+                                  right: 5,
+                                  child: GestureDetector(
+                                    onTap: () =>
+                                        _showDeleteConfirmation(trip.postId),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withOpacity(0.5),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.close,
+                                        color: Colors.white,
+                                        size: 16,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         );
                       }),

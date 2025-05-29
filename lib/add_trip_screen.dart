@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:final_proj/profile.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AddTripScreen extends StatefulWidget {
   const AddTripScreen({super.key});
@@ -39,6 +40,27 @@ class _AddTripScreenState extends State<AddTripScreen> {
     }
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Please sign in to post a trip.")),
+        );
+        return;
+      }
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final userData = userDoc.data();
+
+      if (userData == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("User data not found.")),
+        );
+        return;
+      }
+
       List<String> imageUrls = [];
       for (XFile image in _selectedImages) {
         File file = File(image.path);
@@ -55,6 +77,17 @@ class _AddTripScreenState extends State<AddTripScreen> {
         'description': _descriptionController.text.trim(),
         'images': imageUrls,
         'timestamp': FieldValue.serverTimestamp(),
+        'userId': user.uid,
+        'username': userData['username'] ?? 'Anonymous',
+        'profile_image': userData['profile_image'] ?? '',
+        'first_name': userData['first_name'] ?? 'Anonymous',
+      });
+
+      setState(() {
+        _titleController.clear();
+        _descriptionController.clear();
+        _selectedImages.clear();
+        _currentIndex = 0;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
