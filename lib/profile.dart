@@ -22,6 +22,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int _selectedIndex = 3;
   String? firstName;
   String? currentUserId;
+  String? profileImageUrl;
   List<dynamic> followingList = [];
   bool isFollowing = false;
   int tripCount = 0;
@@ -50,6 +51,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final userData = userDoc.data();
         setState(() {
           firstName = userData?['username'] ?? 'User';
+          profileImageUrl = userData?['profile_image'];
         });
       }
 
@@ -215,8 +217,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Row(
                   children: [
-                    const CircleAvatar(
-                      backgroundImage: AssetImage("assets/logo.jpg"),
+                    CircleAvatar(
+                      backgroundImage: NetworkImage(profileImageUrl ??
+                          'https://www.gravatar.com/avatar/'),
                       radius: 40,
                     ),
                     const SizedBox(width: 16),

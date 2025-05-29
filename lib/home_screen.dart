@@ -21,16 +21,81 @@ class _HomeScreenState extends State<HomeScreen> {
   double _currentPage = 0;
   int _selectedIndex = 0;
   String? currentUserId;
+  List<TripPost> _trips = [];
+  List<Map<String, dynamic>> _tripData = [];
 
   @override
   void initState() {
     super.initState();
     currentUserId = FirebaseAuth.instance.currentUser?.uid;
-    _pageController = PageController(viewportFraction: 0.75);
+    _pageController = PageController(
+      viewportFraction: 0.9,
+      initialPage: 0,
+    );
     _pageController.addListener(() {
       setState(() {
         _currentPage = _pageController.page ?? 0;
       });
+    });
+    _loadTrips();
+  }
+
+  Future<void> _loadTrips() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('trips')
+        .orderBy('timestamp', descending: true)
+        .get();
+
+    if (snapshot.docs.isNotEmpty) {
+      setState(() {
+        _tripData = snapshot.docs.map((doc) => {
+          ...doc.data(),
+          'postId': doc.id,
+        }).toList();
+        _trips = snapshot.docs.map((doc) {
+          final data = doc.data();
+          
+          List<String> images = [];
+          if (data['images'] != null) {
+            if (data['images'] is List) {
+              images = List<String>.from(data['images']);
+            } else if (data['images'] is String) {
+              images = [data['images']];
+            }
+          }
+
+          List<String> descriptions = [];
+          if (data['description'] != null) {
+            if (data['description'] is List) {
+              descriptions = List<String>.from(data['description']);
+            } else if (data['description'] is String) {
+              descriptions = [data['description']];
+            }
+          }
+
+          if (descriptions.length < images.length) {
+            descriptions = List.generate(
+              images.length,
+              (index) => index < descriptions.length ? descriptions[index] : '',
+            );
+          }
+
+          return TripPost(
+            title: data['title'] ?? '',
+            imageUrls: images,
+            descriptions: descriptions,
+            userId: data['userId'] ?? '',
+            username: data['username'] ?? '',
+            profileImageUrl: data['profileImageUrl'] ?? '',
+          );
+        }).toList();
+      });
+    }
+  }
+
+  void _onPageChanged(int page) {
+    setState(() {
+      _currentPage = page.toDouble();
     });
   }
 
@@ -95,6 +160,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showCommentModal(BuildContext context, String postId) {
+    if (postId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: Post ID is missing')),
+      );
+      return;
+    }
+
     final TextEditingController _commentController = TextEditingController();
     final userId = FirebaseAuth.instance.currentUser?.uid;
 
@@ -127,7 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Colors.black,
                     ),
                     onPressed: () {
-                      Navigator.pop(context);
+                      Navigator.pop(modalContext);
                     },
                   ),
                 ],
@@ -140,7 +212,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       .where('postId', isEqualTo: postId)
                       .snapshots(),
                   builder: (context, commentSnapshot) {
-                    print('Querying comments for postId: $postId');
                     if (commentSnapshot.connectionState ==
                         ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
@@ -159,15 +230,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         final commentData =
                             comments[index].data() as Map<String, dynamic>;
 
-                        print(
-                            'Comment profile image URL: ${commentData['profile_image']}');
-
                         return ListTile(
                           leading: CircleAvatar(
                             backgroundImage: NetworkImage(
                                 commentData['profile_image'] ?? ''),
                           ),
-                          
                           title: Row(
                             children: [
                               Text(commentData['username'] ?? 'Anonymous'),
@@ -235,8 +302,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         'timestamp': FieldValue.serverTimestamp(),
                       });
                       _commentController.clear();
-
-                      // Navigator.pop(context);
                     }
                   }
                 },
@@ -291,216 +356,211 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         backgroundColor: const Color(0xFF353566),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('trips').snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: _trips.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                Expanded(
+                  child: PageView.builder(
+                    controller: _pageController,
+                    itemCount: _trips.length,
+                    onPageChanged: _onPageChanged,
+                    physics: const ClampingScrollPhysics(),
+                    itemBuilder: (context, index) {
+                      final scale = 1.0 - (_currentPage - index).abs().clamp(0.0, 1.0) * 0.15;
+                      final trip = _trips[index];
+                      final data = _tripData[index];
+                      final likes = List<String>.from(data['likes'] ?? []);
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(
-                child: Text("No posts yet",
-                    style: TextStyle(color: Colors.black)));
-          }
-
-          final trips = snapshot.data!.docs.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-
-            return TripPost(
-              title: data['title'] ?? '',
-              imageUrls: (data['images'] is Iterable)
-                  ? List<String>.from(data['images'])
-                  : [data['images'].toString()],
-              descriptions: (data['description'] is Iterable)
-                  ? List<String>.from(data['description'])
-                  : [data['description'].toString()],
-              userId: data['userId'] ?? '',
-              username: data['username'] ?? '',
-              profileImageUrl: data['profileImageUrl'] ?? '',
-            );
-          }).toList();
-
-          return Column(
-            children: [
-              Expanded(
-                child: PageView.builder(
-                  controller: _pageController,
-                  itemCount: trips.length,
-                  itemBuilder: (context, index) {
-                    final scale =
-                        (1 - (_currentPage - index).abs()).clamp(0.85, 1.0);
-                    final trip = trips[index];
-                    final postId = snapshot.data!.docs[index].id;
-                    final data = snapshot.data!.docs[index].data()
-                        as Map<String, dynamic>;
-                    final likes = List<String>.from(data['likes'] ?? []);
-
-                    return Center(
-                      child: Transform.scale(
-                        scale: scale,
-                        child: GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => TripCarouselScreen(trip: trip),
+                      return Center(
+                        child: Transform.scale(
+                          scale: scale,
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => TripCarouselScreen(trip: trip),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 8),
+                              height: MediaQuery.of(context).size.height * 0.7,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.4),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 5),
+                                  )
+                                ],
                               ),
-                            );
-                          },
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 16),
-                            height: MediaQuery.of(context).size.height * 0.7,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.4),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 5),
-                                )
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(20),
-                              child: Stack(
-                                children: [
-                                  trip.imageUrls.isNotEmpty
-                                      ? CachedNetworkImage(
-                                          imageUrl: trip.imageUrls[0],
-                                          fit: BoxFit.cover,
-                                          width: double.infinity,
-                                          height: double.infinity,
-                                        )
-                                      : Container(
-                                          color: Colors.grey[300],
-                                          width: double.infinity,
-                                          height: double.infinity,
-                                          child: const Icon(
-                                              Icons.image_not_supported),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(20),
+                                child: Stack(
+                                  children: [
+                                    trip.imageUrls.isNotEmpty
+                                        ? CachedNetworkImage(
+                                            imageUrl: trip.imageUrls[0],
+                                            fit: BoxFit.cover,
+                                            width: double.infinity,
+                                            height: double.infinity,
+                                            placeholder: (context, url) =>
+                                                const Center(
+                                              child: CircularProgressIndicator(
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            errorWidget: (context, url, error) =>
+                                                Container(
+                                              color: Colors.grey[300],
+                                              width: double.infinity,
+                                              height: double.infinity,
+                                              child: Column(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  const Icon(Icons.broken_image,
+                                                      size: 48,
+                                                      color: Colors.grey),
+                                                  const SizedBox(height: 8),
+                                                  Text(
+                                                    'Failed to load image',
+                                                    style: TextStyle(
+                                                        color: Colors.grey[600]),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          )
+                                        : Container(
+                                            color: Colors.grey[300],
+                                            width: double.infinity,
+                                            height: double.infinity,
+                                            child: const Icon(
+                                                Icons.image_not_supported),
+                                          ),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.bottomCenter,
+                                          end: Alignment.topCenter,
+                                          colors: [
+                                            Colors.black.withOpacity(0.6),
+                                            Colors.transparent,
+                                          ],
                                         ),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.bottomCenter,
-                                        end: Alignment.topCenter,
-                                        colors: [
-                                          Colors.black.withOpacity(0.6),
-                                          Colors.transparent,
+                                      ),
+                                    ),
+                                    const Positioned(
+                                      top: 15,
+                                      left: 15,
+                                      child: Row(
+                                        children: [
+                                          CircleAvatar(
+                                            backgroundImage:
+                                                AssetImage("assets/logo.jpg"),
+                                            radius: 18,
+                                          ),
+                                          SizedBox(width: 10),
+                                          Text(
+                                            "Miguel",
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
+                                          ),
                                         ],
                                       ),
                                     ),
-                                  ),
-                                  const Positioned(
-                                    top: 15,
-                                    left: 15,
-                                    child: Row(
-                                      children: [
-                                        CircleAvatar(
-                                          backgroundImage:
-                                              AssetImage("assets/logo.jpg"),
-                                          radius: 18,
+                                    Positioned(
+                                      bottom: 70,
+                                      left: 20,
+                                      right: 20,
+                                      child: Text(
+                                        trip.title,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
                                         ),
-                                        SizedBox(width: 10),
-                                        Text(
-                                          "Miguel",
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Positioned(
-                                    bottom: 70,
-                                    left: 20,
-                                    right: 20,
-                                    child: Text(
-                                      trip.title,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                  ),
-                                  Positioned(
-                                    bottom: 20,
-                                    left: 20,
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            IconButton(
-                                              icon: Icon(
-                                                likes.contains(FirebaseAuth
-                                                        .instance
-                                                        .currentUser
-                                                        ?.uid)
-                                                    ? Icons.favorite
-                                                    : Icons.favorite_border,
-                                                color: Colors.white,
+                                    Positioned(
+                                      bottom: 20,
+                                      left: 20,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              IconButton(
+                                                icon: Icon(
+                                                  likes.contains(FirebaseAuth
+                                                          .instance
+                                                          .currentUser
+                                                          ?.uid)
+                                                      ? Icons.favorite
+                                                      : Icons.favorite_border,
+                                                  color: Colors.white,
+                                                ),
+                                                onPressed: () {
+                                                  _toggleLike(data['postId'], likes);
+                                                },
                                               ),
-                                              onPressed: () {
-                                                _toggleLike(postId, likes);
-                                              },
-                                            ),
-                                            Text(
-                                              likes.length.toString(),
-                                              style: const TextStyle(
-                                                  color: Colors.white),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(width: 16),
-                                        IconButton(
-                                          icon: const Icon(
-                                              Icons.mode_comment_outlined,
-                                              color: Colors.white),
-                                          onPressed: () {
-                                            _showCommentModal(context, postId);
-                                          },
-                                        ),
-                                        const SizedBox(height: 4),
-                                      ],
+                                              Text(
+                                                likes.length.toString(),
+                                                style: const TextStyle(
+                                                    color: Colors.white),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(width: 16),
+                                          IconButton(
+                                            icon: const Icon(
+                                                Icons.mode_comment_outlined,
+                                                color: Colors.white),
+                                            onPressed: () {
+                                              _showCommentModal(context, data['postId']);
+                                            },
+                                          ),
+                                          const SizedBox(height: 4),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                         ),
+                      );
+                    },
+                  ),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(_trips.length, (index) {
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                      height: 8,
+                      width: _currentPage.round() == index ? 16 : 8,
+                      decoration: BoxDecoration(
+                        color: _currentPage.round() == index
+                            ? Colors.white
+                            : Colors.white38,
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     );
-                  },
+                  }),
                 ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(trips.length, (index) {
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    margin:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                    height: 8,
-                    width: _currentPage.round() == index ? 16 : 8,
-                    decoration: BoxDecoration(
-                      color: _currentPage.round() == index
-                          ? Colors.white
-                          : Colors.white38,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  );
-                }),
-              ),
-            ],
-          );
-        },
-      ),
+              ],
+            ),
       bottomNavigationBar: BottomNavBar(
         selectedIndex: _selectedIndex,
         onTabTapped: _onTabTapped,

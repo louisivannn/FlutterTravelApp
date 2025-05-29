@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -21,8 +22,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final TextEditingController _passwordController = TextEditingController();
 
   File? _imageFile;
+  String? _profileImageUrl;
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
+  final _storage = FirebaseStorage.instance;
 
   @override
   void initState() {
@@ -39,13 +42,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _firstNameController.text = data['first_name'] ?? '';
         _lastNameController.text = data['last_name'] ?? '';
         _usernameController.text = data['username'] ?? '';
+        setState(() {
+          _profileImageUrl = data['profile_image'];
+        });
       }
     }
   }
 
   Future<void> _pickImage() async {
-    final pickedFile = await ImagePicker().pickImage(
+    final pickedFile = await ImagePicker().pickImage( 
       source: ImageSource.gallery,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
     );
 
     if (pickedFile != null) {
@@ -55,15 +64,43 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
+  Future<String?> _uploadImage() async {
+    if (_imageFile == null) return _profileImageUrl;
+
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+
+      // Create a reference to the file location in Firebase Storage
+      final storageRef = _storage.ref().child('profile_images/${user.uid}');
+      
+      // Upload the file
+      final uploadTask = await storageRef.putFile(_imageFile!);
+      
+      // Get the download URL
+      final downloadUrl = await uploadTask.ref.getDownloadURL();
+      return downloadUrl;
+    } catch (e) {
+      print('Error uploading image: $e');
+      return null;
+    }
+  }
+
   Future<void> _saveProfile() async {
     if (_formKey.currentState!.validate()) {
-      final user = _auth.currentUser;
-      if (user != null) {
+      try {
+        final user = _auth.currentUser;
+        if (user == null) return;
+
+        // Upload image if changed
+        final imageUrl = await _uploadImage();
+
         // Update Firestore user data
         await _firestore.collection('users').doc(user.uid).update({
           'first_name': _firstNameController.text.trim(),
           'last_name': _lastNameController.text.trim(),
           'username': _usernameController.text.trim(),
+          if (imageUrl != null) 'profile_image': imageUrl,
         });
 
         // Update password if provided
@@ -71,9 +108,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           await user.updatePassword(_passwordController.text.trim());
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile saved!')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Profile saved successfully!')),
+          );
+          Navigator.pop(context);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error saving profile: $e')),
+          );
+        }
       }
     }
   }
@@ -112,7 +158,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       radius: 100,
                       backgroundImage: _imageFile != null
                           ? FileImage(_imageFile!)
-                          : const AssetImage('assets/logo.jpg') as ImageProvider,
+                          : (_profileImageUrl != null
+                              ? NetworkImage(_profileImageUrl!)
+                              : const AssetImage('assets/logo.jpg')) as ImageProvider,
                     ),
                     Positioned(
                       bottom: 8,
@@ -125,7 +173,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           backgroundColor: const Color(0xFF353566),
                           minimumSize: const Size(40, 40),
                         ),
-                        child: const Icon(Icons.camera_alt, size: 20, color: Colors.white),
+                        child: const Icon(Icons.camera_alt,
+                            size: 20, color: Colors.white),
                       ),
                     ),
                   ],
@@ -134,7 +183,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               const SizedBox(height: 30),
 
               // First Name
-              const Text('First Name', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('First Name',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _firstNameController,
@@ -142,12 +192,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   border: OutlineInputBorder(),
                   isDense: true,
                 ),
-                validator: (value) => value!.isEmpty ? 'Please enter first name' : null,
+                validator: (value) =>
+                    value!.isEmpty ? 'Please enter first name' : null,
               ),
               const SizedBox(height: 16),
 
               // Last Name
-              const Text('Last Name', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('Last Name',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _lastNameController,
@@ -155,12 +207,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   border: OutlineInputBorder(),
                   isDense: true,
                 ),
-                validator: (value) => value!.isEmpty ? 'Please enter last name' : null,
+                validator: (value) =>
+                    value!.isEmpty ? 'Please enter last name' : null,
               ),
               const SizedBox(height: 16),
 
               // Username
-              const Text('Username', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('Username',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _usernameController,
@@ -168,12 +222,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   border: OutlineInputBorder(),
                   isDense: true,
                 ),
-                validator: (value) => value!.isEmpty ? 'Please enter username' : null,
+                validator: (value) =>
+                    value!.isEmpty ? 'Please enter username' : null,
               ),
               const SizedBox(height: 16),
 
               // Password
-              const Text('Password', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('Password',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _passwordController,
